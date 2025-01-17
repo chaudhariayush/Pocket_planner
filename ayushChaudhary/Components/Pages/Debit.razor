@@ -1,0 +1,279 @@
+﻿@page "/Debit"
+@using ayushChaudhary.Service
+@using ayushChaudhary.Models
+@inject DebitService DebitService
+@inject CreditService CreditService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Debit Transactions</h3>
+    <button class="btn btn-danger" @onclick="ShowAddForm">Add Debit</button>
+</div>
+
+<!-- Search Filter -->
+<div class="mb-4">
+    <input type="text" class="form-control" placeholder="Search by Title" @bind="SearchTerm" />
+</div>
+
+<!-- Filter by Tags and Date Range -->
+<div class="mb-4">
+    <label for="tags" class="form-label">Filter by Tags</label>
+    <input type="text" id="tags" class="form-control" @bind="TagFilter" placeholder="Enter tags to filter" />
+
+    <div class="mt-3">
+        <label for="startDate" class="form-label">Start Date</label>
+        <input type="date" id="startDate" class="form-control" @bind="StartDate" />
+
+        <label for="endDate" class="form-label mt-3">End Date</label>
+        <input type="date" id="endDate" class="form-control" @bind="EndDate" />
+    </div>
+</div>
+
+<!-- Filter Button -->
+<div class="mb-4">
+    <button class="btn btn-primary" @onclick="ApplyFilters">Apply Filters</button>
+</div>
+
+<!-- Modal for Add Debit Form -->
+@if (IsAddFormVisible)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Debit</h5>
+                    <button type="button" class="btn-close" @onclick="CancelAddOrEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" id="title" class="form-control" @bind="NewDebit.Title" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="deductedAmount" class="form-label">Deducted Amount</label>
+                        <input type="number" id="deductedAmount" class="form-control" @bind="NewDebit.DeductedAmount" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="tags" class="form-label">Tags</label>
+                        <input type="text" id="tags" class="form-control" @bind="NewDebit.Tags" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="debitDate" class="form-label">Debit Date</label>
+                        <input type="date" id="debitDate" class="form-control" @bind="NewDebit.DebitDate" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea id="notes" class="form-control" @bind="NewDebit.Notes"></textarea>
+                    </div>
+                    <button class="btn btn-primary me-2" @onclick="SaveDebit">Submit</button>
+                    <button class="btn btn-secondary" @onclick="CancelAddOrEdit">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Balance Error Message -->
+@if (!string.IsNullOrEmpty(ValidationMessage))
+{
+    <div class="alert alert-danger mt-3">
+        @ValidationMessage
+    </div>
+}
+
+<!-- Display Total Inflows (Credits) and Total Outflows (Debits) side by side -->
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h4>Total balance: @TotalCredits.ToString("C")</h4>
+    </div>
+    <div>
+        <h4>Total Outflows: @TotalAmount.ToString("C")</h4>
+    </div>
+</div>
+
+<!-- Debit Transactions Table -->
+<table class="table table-bordered table-striped">
+    <thead class="table-dark">
+        <tr>
+            <th>Title</th>
+            <th>Deducted Amount</th>
+            <th @onclick="() => SortByDate()">
+                Debit Date <i class="fas" style="cursor:pointer">
+                    @(IsDateAscending ? "↑" : "↓")
+                </i>
+            </th>
+            <th>Tags</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (FilteredDebits.Any())
+        {
+            @foreach (var debit in FilteredDebits)
+            {
+                <tr>
+                    <td>@debit.Title</td>
+                    <td>@debit.DeductedAmount.ToString("C")</td>
+                    <td>@debit.DebitDate.ToString("dd-MM-yyyy")</td>
+                    <td>@debit.Tags</td>
+                    <td>@debit.Notes</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" @onclick="() => EditDebit(debit)">Edit</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteDebit(debit.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="6" class="text-center">No results found.</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<DebitTransaction> Debits = new();
+    private List<DebitTransaction> FilteredDebits = new();
+    private DebitTransaction NewDebit = new();
+    private bool IsAddFormVisible = false;
+    private string _searchTerm = "";
+    private string TagFilter = "";  // Filter by tags
+    private DateTime? StartDate { get; set; }
+    private DateTime? EndDate { get; set; }
+    private decimal TotalAmount { get; set; }
+    private decimal TotalCredits { get; set; }  // For Total Inflows
+    private string ValidationMessage { get; set; }
+    private bool IsDateAscending = true;
+
+    // On initialization, load the debits and calculate the total amounts
+    protected override void OnInitialized()
+    {
+        Debits = DebitService.GetDebits();
+        FilteredDebits = Debits;
+        CalculateTotalAmount();  // Calculate total amount for all debits initially
+        CalculateTotalCredits(); // Calculate total inflows (credits)
+    }
+
+    // Calculate the total inflows (credits)
+    private void CalculateTotalCredits()
+    {
+        TotalCredits = CreditService.GetCredits().Sum(c => c.Amount); // Sum up all credit amounts
+    }
+
+    // Calculate the total amount of debits (outflows)
+    private void CalculateTotalAmount()
+    {
+        TotalAmount = FilteredDebits.Sum(d => d.DeductedAmount);
+    }
+
+    // Show the form to add a new debit
+    private void ShowAddForm()
+    {
+        IsAddFormVisible = true;
+        NewDebit = new DebitTransaction
+            {
+                DebitDate = DateTime.Today // Set today's date as default for the debit date
+            };
+        ValidationMessage = string.Empty; // Reset validation message when adding a new debit
+    }
+
+    // Save the debit to the list and recalculate the total amount
+    private void SaveDebit()
+    {
+        // Validate the debit transaction before saving
+        var validationResult = DebitService.AddDebitTransaction(NewDebit);
+        if (validationResult == "Debit transaction successful.")
+        {
+            Debits = DebitService.GetDebits(); // Reload debits from the service
+            FilteredDebits = Debits; // Update the table with the new list of debits
+            CalculateTotalAmount(); // Recalculate the total amount after adding
+            CalculateTotalCredits(); // Recalculate total inflows (credits)
+            CancelAddOrEdit(); // Close the form
+        }
+        else
+        {
+            ValidationMessage = validationResult; // Display validation error message
+        }
+    }
+
+    // Close the form without saving
+    private void CancelAddOrEdit()
+    {
+        IsAddFormVisible = false;
+    }
+
+    // Edit debit (this method can be extended later if needed)
+    private void EditDebit(DebitTransaction debit)
+    {
+        // Edit functionality (if needed in the future)
+    }
+
+    // Delete a debit transaction and recalculate the total amount
+    private void DeleteDebit(int id)
+    {
+        var result = DebitService.DeleteDebitTransaction(id); // Call the service to delete the debit
+        if (result == "Debit transaction deleted successfully.")
+        {
+            Debits = DebitService.GetDebits(); // Reload debits from the service
+            FilteredDebits = Debits; // Update the table with the updated list of debits
+            CalculateTotalAmount(); // Recalculate total amount after deletion
+            CalculateTotalCredits(); // Recalculate total inflows (credits)
+        }
+    }
+
+    // Search functionality for filtering debits by title
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            _searchTerm = value;
+            ApplyFilters(); // Update filtered debits when the search term changes
+        }
+    }
+
+    // Apply the filters when the button is clicked
+    private void ApplyFilters()
+    {
+        var filtered = Debits
+            .Where(d => d.Title.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Apply tag filter
+        if (!string.IsNullOrEmpty(TagFilter))
+        {
+            filtered = filtered.Where(d => d.Tags.Contains(TagFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        // Apply date range filter
+        if (StartDate.HasValue)
+        {
+            filtered = filtered.Where(d => d.DebitDate >= StartDate.Value).ToList();
+        }
+
+        if (EndDate.HasValue)
+        {
+            filtered = filtered.Where(d => d.DebitDate <= EndDate.Value).ToList();
+        }
+
+        FilteredDebits = filtered;
+        CalculateTotalAmount();
+        CalculateTotalCredits(); // Recalculate total inflows (credits) when filters are applied
+    }
+
+    // Sort by date (toggle ascending/descending)
+    private void SortByDate()
+    {
+        if (IsDateAscending)
+        {
+            FilteredDebits = FilteredDebits.OrderBy(d => d.DebitDate).ToList();
+        }
+        else
+        {
+            FilteredDebits = FilteredDebits.OrderByDescending(d => d.DebitDate).ToList();
+        }
+        IsDateAscending = !IsDateAscending; // Toggle the sorting order
+    }
+}

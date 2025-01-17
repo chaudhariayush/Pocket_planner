@@ -1,0 +1,290 @@
+﻿@page "/Credit"
+
+@inject CreditService CreditService
+@using ayushChaudhary.Service
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Credit Transactions</h3>
+    <button class="btn btn-success" @onclick="ShowAddForm">Add Credit</button>
+</div>
+
+<div class="mb-4">
+    <input type="text" class="form-control" placeholder="Search by title..." @bind="SearchTerm" />
+</div>
+
+<!-- Search by Tags -->
+<div class="mb-4">
+    <input type="text" class="form-control" placeholder="Search by tags..." @bind="TagsQuery" />
+</div>
+
+<!-- Date Range Filter -->
+<div class="mb-4 d-flex">
+    <input type="date" class="form-control me-2" @bind="StartDate" />
+    <input type="date" class="form-control" @bind="EndDate" />
+    <button class="btn btn-info ms-2" @onclick="FilterCredits">Filter</button>
+</div>
+
+<!-- Sorting Options -->
+<div class="mb-4 d-flex justify-content-start">
+    <button class="btn btn-primary me-2" @onclick="ShowHighestCredits">Show Top 5 Highest Credits</button>
+    <button class="btn btn-secondary" @onclick="ShowLowestCredits">Show Top 5 Lowest Credits</button>
+
+    <!-- Sort by Date -->
+    <button class="btn btn-warning ms-2" @onclick="SortByDate">
+        Sort by Date @(IsDateAscending ? "↑" : "↓")
+    </button>
+</div>
+
+<!-- Modal for Add/Edit Credit -->
+<div class="modal @((IsAddFormVisible || IsEditFormVisible) ? "show" : "")" tabindex="-1" style="display: @(IsAddFormVisible || IsEditFormVisible ? "block" : "none")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@((IsAddFormVisible ? "Add New Credit" : "Edit Credit"))</h5>
+                <button type="button" class="btn-close" @onclick="CancelAddOrEdit"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" id="title" class="form-control" @bind="NewCredit.Title" />
+                </div>
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Amount</label>
+                    <input type="number" id="amount" class="form-control" @bind="NewCredit.Amount" />
+                </div>
+                <div class="mb-3">
+                    <label for="tags" class="form-label">Tags</label>
+                    <input type="text" id="tags" class="form-control" @bind="NewCredit.Tags" />
+                </div>
+                <div class="mb-3">
+                    <label for="creditDate" class="form-label">Credit Date</label>
+                    <input type="date" id="creditDate" class="form-control" @bind="NewCredit.CreditDate" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="SaveCredit">@((IsAddFormVisible) ? "Submit" : "Save Changes")</button>
+                <button class="btn btn-secondary" @onclick="CancelAddOrEdit">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Display Total Inflow -->
+<div class="mb-4">
+    <h4>Total Inflows: @TotalAmount.ToString("C")</h4>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead class="table-dark">
+        <tr>
+            <th>Title</th>
+            <th>Amount</th>
+            <th>Tags</th>
+            <th>Credit Date</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (FilteredCredits.Any())
+        {
+            @foreach (var credit in FilteredCredits)
+            {
+                <tr class="@GetRowClass(credit)">
+                    <td>@credit.Title</td>
+                    <td>@credit.Amount.ToString("C")</td>
+                    <td>@credit.Tags</td>
+                    <td>@credit.CreditDate.ToString("dd-MM-yyyy")</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" @onclick="() => EditCredit(credit)">Edit</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteCreditTransaction(credit.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="5" class="text-center">No results found.</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<CreditTransaction> Credits = new();
+    private List<CreditTransaction> FilteredCredits = new();
+    private CreditTransaction NewCredit = new();
+    private bool IsAddFormVisible = false;
+    private bool IsEditFormVisible = false;
+    private bool IsDateAscending = true;
+    private string _searchTerm = "";
+    private string _tagsQuery = "";
+    private DateTime? StartDate { get; set; }
+    private DateTime? EndDate { get; set; }
+    private decimal TotalAmount { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Credits = CreditService.GetCredits();
+        FilteredCredits = Credits;
+        CalculateTotalAmount();  // Calculate total amount for all credits initially
+    }
+
+    private void ShowAddForm()
+    {
+        IsAddFormVisible = true;
+        IsEditFormVisible = false;
+        NewCredit = new CreditTransaction
+            {
+                CreditDate = DateTime.Today
+            };
+    }
+
+    private void EditCredit(CreditTransaction credit)
+    {
+        IsEditFormVisible = true;
+        IsAddFormVisible = false;
+        NewCredit = new CreditTransaction
+            {
+                Id = credit.Id,
+                Title = credit.Title,
+                Amount = credit.Amount,
+                Tags = credit.Tags,
+                CreditDate = credit.CreditDate
+            };
+    }
+
+    private void SaveCredit()
+    {
+        if (!string.IsNullOrWhiteSpace(NewCredit.Title) && NewCredit.Amount > 0 && NewCredit.CreditDate != default)
+        {
+            if (IsAddFormVisible)
+            {
+                NewCredit.Id = Credits.Any() ? Credits.Max(c => c.Id) + 1 : 1;
+                Credits.Add(NewCredit);
+            }
+            else if (IsEditFormVisible)
+            {
+                var existingCredit = Credits.FirstOrDefault(c => c.Id == NewCredit.Id);
+                if (existingCredit != null)
+                {
+                    existingCredit.Title = NewCredit.Title;
+                    existingCredit.Amount = NewCredit.Amount;
+                    existingCredit.Tags = NewCredit.Tags;
+                    existingCredit.CreditDate = NewCredit.CreditDate;
+                }
+            }
+
+            CreditService.SaveCredits(Credits);
+            FilteredCredits = Credits;
+            CalculateTotalAmount(); // Recalculate total amount after add or edit
+            CancelAddOrEdit(); // Close the form
+        }
+    }
+
+    private void CancelAddOrEdit()
+    {
+        IsAddFormVisible = false;
+        IsEditFormVisible = false;
+    }
+
+    private void DeleteCreditTransaction(int id)
+    {
+        CreditService.DeleteCreditTransaction(id); // Updated method name
+        Credits = CreditService.GetCredits();
+        FilterCredits();
+        CalculateTotalAmount(); // Recalculate total amount after deletion
+    }
+
+    private void FilterCredits()
+    {
+        // Filter credits based on the search term (case-insensitive)
+        var filtered = Credits
+            .Where(c => c.Title.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Filter by tags (case-insensitive)
+        if (!string.IsNullOrEmpty(TagsQuery))
+        {
+            filtered = filtered.Where(c => c.Tags.Contains(TagsQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        // Filter by date range if set
+        if (StartDate.HasValue)
+        {
+            filtered = filtered.Where(c => c.CreditDate >= StartDate.Value).ToList();
+        }
+
+        if (EndDate.HasValue)
+        {
+            filtered = filtered.Where(c => c.CreditDate <= EndDate.Value).ToList();
+        }
+
+        FilteredCredits = filtered;
+        CalculateTotalAmount(); // Recalculate total amount after filtering
+    }
+
+    private void CalculateTotalAmount()
+    {
+        // Calculate total amount from filtered credits
+        TotalAmount = FilteredCredits.Sum(c => c.Amount);
+    }
+
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            _searchTerm = value;
+            FilterCredits(); // Update filtered credits whenever the search term changes
+        }
+    }
+
+    private string TagsQuery
+    {
+        get => _tagsQuery;
+        set
+        {
+            _tagsQuery = value;
+            FilterCredits(); // Update filtered credits whenever the tags query changes
+        }
+    }
+
+    private void ShowHighestCredits()
+    {
+        FilteredCredits = Credits
+            .OrderByDescending(c => c.Amount)
+            .Take(5)
+            .ToList();
+        CalculateTotalAmount(); // Recalculate total amount for top 5 highest credits
+    }
+
+    private void ShowLowestCredits()
+    {
+        FilteredCredits = Credits
+            .OrderBy(c => c.Amount)
+            .Take(5)
+            .ToList();
+        CalculateTotalAmount(); // Recalculate total amount for top 5 lowest credits
+    }
+
+    private void SortByDate()
+    {
+        // Sort credits by date
+        if (IsDateAscending)
+        {
+            FilteredCredits = FilteredCredits.OrderBy(c => c.CreditDate).ToList();
+        }
+        else
+        {
+            FilteredCredits = FilteredCredits.OrderByDescending(c => c.CreditDate).ToList();
+        }
+
+        IsDateAscending = !IsDateAscending; // Toggle the sorting order
+    }
+
+    private string GetRowClass(CreditTransaction credit)
+    {
+        return "table-success";
+    }
+}

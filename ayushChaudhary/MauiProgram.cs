@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using ayushChaudhary.Service;
+using MudBlazor.Services;
 
 namespace ayushChaudhary
 {
@@ -16,9 +18,26 @@ namespace ayushChaudhary
 
             builder.Services.AddMauiBlazorWebView();
 
+            // Registering User Services
+            builder.Services.AddSingleton<IUserService, UserService>();
+            builder.Services.AddSingleton<CreditService>(); // Register the CreditService
+
+            // Register DebitService
+
+            // Register other services
+            builder.Services.AddSingleton<AuthenticationStateService>();
+
+            builder.Services.AddSingleton<DebitService>(); // Register DebitService as a Singleton
+            builder.Services.AddSingleton<DebtService>();
+
+
+
+            // MudBlazor services
+            builder.Services.AddMudServices();
+
 #if DEBUG
-    		builder.Services.AddBlazorWebViewDeveloperTools();
-    		builder.Logging.AddDebug();
+            builder.Services.AddBlazorWebViewDeveloperTools();
+            builder.Logging.AddDebug();
 #endif
 
             return builder.Build();

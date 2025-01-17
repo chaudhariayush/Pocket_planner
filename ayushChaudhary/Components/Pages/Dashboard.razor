@@ -1,0 +1,290 @@
+﻿@page "/Dashboard"
+@using ayushChaudhary.Service
+@using ayushChaudhary.Models
+@inject CreditService CreditService
+@inject DebitService DebitService
+@inject DebtService DebtService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Dashboard</h3>
+</div>
+
+<!-- Display Total Transactions above Pending and Cleared Debt -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="box total-transactions-box">
+            <h4>Total Transactions</h4>
+            <p>@TotalTransactions.ToString("C")</p>
+        </div>
+    </div>
+</div>
+
+<!-- Display Pending Debt and Cleared Debt in styled boxes -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="box pending-debt-box">
+            <h4>Pending Debt</h4>
+            <p>@PendingDebt.ToString("C")</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="box cleared-debt-box">
+            <h4>Cleared Debt</h4>
+            <p>@ClearedDebt.ToString("C")</p>
+        </div>
+    </div>
+</div>
+
+<!-- Display Total Inflows, Total Outflows, and Total Debt in styled boxes -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="box credit-box">
+            <h4>Total Inflows</h4>
+            <p>@TotalCredits.ToString("C")</p>
+        </div>
+        <h5 class="section-header">Top 5 Highest Inflows</h5>
+        <ul class="transaction-list">
+            @foreach (var credit in HighestCredits)
+            {
+                <li>
+                    <span class="transaction-title">@credit.Title</span>
+                    <span class="transaction-amount">@credit.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+        <h5 class="section-header">Top 5 Lowest Inflows</h5>
+        <ul class="transaction-list">
+            @foreach (var credit in LowestCredits)
+            {
+                <li>
+                    <span class="transaction-title">@credit.Title</span>
+                    <span class="transaction-amount">@credit.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+    </div>
+    <div class="col-md-4">
+        <div class="box debit-box">
+            <h4>Total Outflows</h4>
+            <p>@TotalAmount.ToString("C")</p>
+        </div>
+        <h5 class="section-header">Top 5 Highest Outflows</h5>
+        <ul class="transaction-list">
+            @foreach (var debit in HighestDebits)
+            {
+                <li>
+                    <span class="transaction-title">@debit.Title</span>
+                    <span class="transaction-amount">@debit.DeductedAmount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+        <h5 class="section-header">Top 5 Lowest Outflows</h5>
+        <ul class="transaction-list">
+            @foreach (var debit in LowestDebits)
+            {
+                <li>
+                    <span class="transaction-title">@debit.Title</span>
+                    <span class="transaction-amount">@debit.DeductedAmount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+    </div>
+    <div class="col-md-4">
+        <div class="box debt-box">
+            <h4>Total Debt</h4>
+            <p>@TotalDebt.ToString("C")</p>
+        </div>
+        <h5 class="section-header">Top 5 Highest Debt</h5>
+        <ul class="transaction-list">
+            @foreach (var debt in HighestDebts)
+            {
+                <li>
+                    <span class="transaction-title">@debt.Source</span>
+                    <span class="transaction-amount">@debt.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+        <h5 class="section-header">Top 5 Lowest Debt</h5>
+        <ul class="transaction-list">
+            @foreach (var debt in LowestDebts)
+            {
+                <li>
+                    <span class="transaction-title">@debt.Source</span>
+                    <span class="transaction-amount">@debt.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+
+        <!-- Display Pending Debt Transactions in a new section -->
+        <h5 class="section-header">Top 5 Pending Debts</h5>
+        <ul class="transaction-list">
+            @foreach (var pendingDebt in PendingDebts)
+            {
+                <li>
+                    <span class="transaction-title">@pendingDebt.Source</span>
+                    <span class="transaction-amount">@pendingDebt.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    private decimal TotalCredits { get; set; }
+    private decimal TotalAmount { get; set; } // Total Debits
+    private decimal TotalDebt { get; set; } // Total Debt
+
+    private decimal TotalTransactions { get; set; } // Total Transactions
+
+    private decimal PendingDebt { get; set; } // Total Pending Debt
+    private decimal ClearedDebt { get; set; } // Total Cleared Debt
+
+    private List<CreditTransaction> HighestCredits { get; set; }
+    private List<CreditTransaction> LowestCredits { get; set; }
+
+    private List<DebitTransaction> HighestDebits { get; set; }
+    private List<DebitTransaction> LowestDebits { get; set; }
+
+    private List<DebtTransaction> HighestDebts { get; set; }
+    private List<DebtTransaction> LowestDebts { get; set; }
+
+    private List<DebtTransaction> PendingDebts { get; set; } // List of Pending Debts
+
+    protected override void OnInitialized()
+    {
+        CalculateTotalCredits();
+        CalculateTotalAmount();
+        CalculateTotalDebt();
+        CalculatePendingDebt();
+        CalculateClearedDebt();
+        CalculateTotalTransactions();
+
+        FetchTopTransactions();
+    }
+
+    private void CalculateTotalCredits()
+    {
+        TotalCredits = CreditService.GetCredits().Sum(c => c.Amount);
+    }
+
+    private void CalculateTotalAmount()
+    {
+        TotalAmount = DebitService.GetDebits().Sum(d => d.DeductedAmount);
+    }
+
+    private void CalculateTotalDebt()
+    {
+        TotalDebt = DebtService.GetAllDebtTransactions().Sum(d => d.Amount);
+    }
+
+    private void CalculatePendingDebt()
+    {
+        PendingDebt = DebtService.GetAllDebtTransactions()
+            .Where(d => d.Status == "Pending")
+            .Sum(d => d.Amount); // Sum only the pending debts
+
+        // Fetch Pending Debt transactions separately
+        PendingDebts = DebtService.GetAllDebtTransactions()
+            .Where(d => d.Status == "Pending")
+            .OrderByDescending(d => d.Amount)
+            .Take(5)
+            .ToList(); // Get the top 5 pending debts
+    }
+
+    private void CalculateClearedDebt()
+    {
+        ClearedDebt = DebtService.GetAllDebtTransactions()
+            .Where(d => d.Status == "Cleared")
+            .Sum(d => d.Amount); // Sum only the cleared debts
+    }
+
+    private void CalculateTotalTransactions()
+    {
+        TotalTransactions = TotalCredits + TotalDebt - TotalAmount;
+    }
+
+    private void FetchTopTransactions()
+    {
+        var credits = CreditService.GetCredits();
+        var debits = DebitService.GetDebits();
+        var debts = DebtService.GetAllDebtTransactions();
+
+        HighestCredits = credits.OrderByDescending(c => c.Amount).Take(5).ToList();
+        LowestCredits = credits.OrderBy(c => c.Amount).Take(5).ToList();
+
+        HighestDebits = debits.OrderByDescending(d => d.DeductedAmount).Take(5).ToList();
+        LowestDebits = debits.OrderBy(d => d.DeductedAmount).Take(5).ToList();
+
+        HighestDebts = debts.OrderByDescending(d => d.Amount).Take(5).ToList();
+        LowestDebts = debts.OrderBy(d => d.Amount).Take(5).ToList();
+    }
+}
+
+<style>
+    .box {
+        padding: 15px 20px;
+        border-radius: 10px;
+        color: white;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .credit-box {
+        background-color: #28a745;
+    }
+
+    .debit-box {
+        background-color: #dc3545;
+    }
+
+    .debt-box {
+        background-color: #ffc107;
+    }
+
+    .total-transactions-box {
+        background-color: #6c757d;
+    }
+
+    .pending-debt-box {
+        background-color: #17a2b8;
+    }
+
+    .cleared-debt-box {
+        background-color: #28a745;
+    }
+
+    .section-header {
+        margin-top: 20px;
+        font-weight: bold;
+        font-size: 1.2rem;
+        color: #343a40;
+    }
+
+    .transaction-list {
+        list-style-type: none;
+        padding-left: 0;
+    }
+
+        .transaction-list li {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+    .transaction-title {
+        font-size: 0.9rem;
+        color: #495057;
+    }
+
+    .transaction-amount {
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #6c757d;
+    }
+</style>

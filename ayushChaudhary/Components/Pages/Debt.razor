@@ -1,0 +1,215 @@
+﻿@page "/debt"
+@inject DebtService DebtService
+@inject CreditService CreditService
+@using ayushChaudhary.Models
+@using ayushChaudhary.Service
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Debt Transactions</h3>
+    <button class="btn btn-primary" @onclick="OpenAddDebtModal">Add Debt</button>
+</div>
+
+<!-- Search by Source -->
+<div class="mb-4">
+    <input type="text" class="form-control" placeholder="Search by Source" @bind="searchQuery" />
+</div>
+
+<!-- Search by Tags -->
+<div class="mb-4">
+    <input type="text" class="form-control" placeholder="Search by Tags" @bind="tagsQuery" />
+</div>
+
+<!-- Date Range Filter -->
+<div class="mb-4 d-flex">
+    <input type="date" class="form-control me-2" @bind="startDate" />
+    <input type="date" class="form-control" @bind="endDate" />
+    <button class="btn btn-info ms-2" @onclick="ApplyFilters">Filter</button>
+</div>
+
+<!-- Sort By Due Date -->
+<div class="mb-4">
+    <button class="btn btn-info" @onclick="SortByDate">
+        Sort By Due Date
+        @if (isSortAscending)
+        {
+            <span>&#x2191;</span>  <!-- Up arrow for ascending -->
+        }
+        else
+        {
+            <span>&#x2193;</span>  <!-- Down arrow for descending -->
+        }
+    </button>
+</div>
+
+<!-- Add Debt Modal -->
+@if (isAddingDebt)
+{
+    <div class="modal" style="display: block; background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Debt Transaction</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddDebtModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@newDebtTransaction" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label for="source" class="form-label">Source</label>
+                            <InputText id="source" @bind-Value="newDebtTransaction.Source" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Amount</label>
+                            <InputNumber id="amount" @bind-Value="newDebtTransaction.Amount" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="dueDate" class="form-label">Due Date</label>
+                            <InputDate id="dueDate" @bind-Value="newDebtTransaction.DueDate" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes</label>
+                            <InputText id="notes" @bind-Value="newDebtTransaction.Notes" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="tags" class="form-label">Tags</label>
+                            <InputText id="tags" @bind-Value="newDebtTransaction.Tags" class="form-control" />
+                        </div>
+
+                        <button type="submit" class="btn btn-success me-2">Add Debt</button>
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddDebtModal">Cancel</button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Display Debt Table -->
+<div class="mb-4">
+    <h4>Total Debt: @TotalDebtAmount.ToString("C")</h4>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead class="table-dark">
+        <tr>
+            <th>Source</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Notes</th>
+            <th>Tags</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var transaction in filteredDebtTransactions)
+        {
+            <tr>
+                <td>@transaction.Source</td>
+                <td>@transaction.Amount.ToString("C")</td>
+                <td>@transaction.DueDate.ToString("dd-MM-yyyy")</td>
+                <td>@transaction.Notes</td>
+                <td>@transaction.Tags</td>
+                <td>@transaction.Status</td>
+                <td>
+                    @if (transaction.Status == "Pending")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick="() => ClearDebt(transaction)">Clear Debt</button>
+                    }
+                    <button class="btn btn-warning btn-sm" @onclick="() => EditTransaction(transaction)">Edit</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => DeleteTransaction(transaction)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private DebtTransaction newDebtTransaction = new DebtTransaction();
+    private List<DebtTransaction> debtTransactions = new List<DebtTransaction>();
+    private List<DebtTransaction> filteredDebtTransactions = new List<DebtTransaction>();
+    private string searchQuery = ""; // Filter by source
+    private string tagsQuery = ""; // Filter by tags
+    private DateTime? startDate = null; // Start date for filtering
+    private DateTime? endDate = null; // End date for filtering
+    private bool isAddingDebt = false; // Tracks modal visibility
+    private bool isSortAscending = true; // Tracks the sorting order (ascending or descending)
+
+    protected override void OnInitialized()
+    {
+        debtTransactions = DebtService.GetAllDebtTransactions();
+        filteredDebtTransactions = debtTransactions; // Initialize filtered list with all transactions
+        ApplyFilters(); // Apply filters initially
+    }
+
+    private void OpenAddDebtModal()
+    {
+        isAddingDebt = true;
+        newDebtTransaction = new DebtTransaction { DueDate = DateTime.Today }; // Default DueDate
+    }
+
+    private void CloseAddDebtModal()
+    {
+        isAddingDebt = false;
+        newDebtTransaction = new DebtTransaction(); // Reset the form
+    }
+
+    private void HandleSubmit()
+    {
+        DebtService.AddDebtTransaction(newDebtTransaction);
+        debtTransactions = DebtService.GetAllDebtTransactions(); // Refresh the transaction list
+        filteredDebtTransactions = debtTransactions; // Update filtered list
+        CloseAddDebtModal(); // Close modal after adding
+    }
+
+    private void ClearDebt(DebtTransaction transaction)
+    {
+        DebtService.MarkDebtAsCleared(transaction);
+        CreditService.AddToTotalInflow(transaction.Amount);
+        debtTransactions = DebtService.GetAllDebtTransactions(); // Refresh the transaction list
+        filteredDebtTransactions = debtTransactions; // Update filtered list
+    }
+
+    private void EditTransaction(DebtTransaction transaction)
+    {
+        // Handle editing functionality here
+    }
+
+    private void DeleteTransaction(DebtTransaction transaction)
+    {
+        debtTransactions.Remove(transaction);
+        DebtService.SaveDebtTransactions(); // Save updated transactions
+        debtTransactions = DebtService.GetAllDebtTransactions(); // Refresh list
+        filteredDebtTransactions = debtTransactions; // Update filtered list
+    }
+
+    private void ApplyFilters()
+    {
+        filteredDebtTransactions = debtTransactions
+            .Where(t => string.IsNullOrWhiteSpace(searchQuery) || t.Source.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) // Filter by source
+            .Where(t => string.IsNullOrWhiteSpace(tagsQuery) || t.Tags.Contains(tagsQuery, StringComparison.OrdinalIgnoreCase)) // Filter by tags
+            .Where(t => !startDate.HasValue || t.DueDate >= startDate.Value) // Filter by start date
+            .Where(t => !endDate.HasValue || t.DueDate <= endDate.Value) // Filter by end date
+            .ToList();
+        SortByDate(); // Apply sorting after filtering
+    }
+
+    private void SortByDate()
+    {
+        // Toggle the sorting order between ascending and descending
+        isSortAscending = !isSortAscending;
+
+        // Sort the transactions by date in the selected order
+        filteredDebtTransactions = isSortAscending
+            ? filteredDebtTransactions.OrderBy(t => t.DueDate).ToList() // Ascending order
+            : filteredDebtTransactions.OrderByDescending(t => t.DueDate).ToList(); // Descending order
+    }
+
+    private decimal TotalDebtAmount => filteredDebtTransactions.Sum(t => t.Amount); // Total debt
+}

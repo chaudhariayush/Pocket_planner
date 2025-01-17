@@ -1,0 +1,156 @@
+﻿@page "/"
+@using ayushChaudhary.Models
+@using ayushChaudhary.Service
+@inject IUserService userService
+@inject NavigationManager navigationManager
+@inject AuthenticationStateService authStateService
+
+<h3 class="title">Login</h3>
+
+<div class="fcontainer">
+    <form>
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" @bind="username" />
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" @bind="password" />
+        </div>
+        <button type="button" @onclick="LoginUser" class="fbtn">Sign In</button>
+    </form>
+    <p class="signup-text">
+        Don’t you have an account? <a href="/add-user">Sign up</a>
+    </p>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="error-message">@errorMessage</p>
+}
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f7f7f7;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    .title {
+        text-align: center;
+        color: black;
+    }
+
+    .fcontainer {
+        width: 350px;
+        padding: 20px;
+        /* background-color: darkslategrey; */
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            color: black;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+    .fbtn {
+        width: 100%;
+        padding: 10px;
+        background-color: #688B73;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .signup-text {
+        text-align: center;
+        margin-top: 15px;
+        font-size: 14px;
+        color: black;
+    }
+
+        .signup-text a {
+            color: black;
+            text-decoration: underline;
+        }
+
+    .error-message {
+        color: red;
+        text-align: center;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+</style>
+
+@code {
+    private string username;
+    private string password;
+    private string errorMessage;
+
+    private async Task LoginUser()
+    {
+        try
+        {
+            var users = await userService.LoadUsersAsync();
+            var user = users.FirstOrDefault(u => u.UserName == username && u.Password == HashPassword(password));
+
+            if (user != null)
+            {
+                // Set the authenticated user in state management
+                authStateService.SetAuthenticatedUser(user);
+
+                // Redirect to the dashboard or todo page
+                navigationManager.NavigateTo("/Dashboard");
+            }
+            else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred during login: {ex.Message}";
+        }
+    }
+
+    private string HashPassword(string password)
+    {
+        try
+        {
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(password);
+                var hash = sha256.ComputeHash(bytes);
+                return Convert.ToBase64String(hash);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while hashing the password: {ex.Message}";
+            return null;
+        }
+    }
+}

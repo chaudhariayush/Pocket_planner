@@ -1,0 +1,188 @@
+﻿@page "/add-user"
+@using ayushChaudhary.Models
+@using ayushChaudhary.Service
+@inject IUserService userService
+@inject NavigationManager navigationManager
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f7f7f7;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    .title {
+        text-align: center;
+        color: black;
+    }
+
+    .fcontainer {
+        width: 350px;
+        padding: 20px;
+        /* background-color: darkslategrey; */
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            color: black;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+    .fbtn {
+        width: 100%;
+        padding: 10px;
+        background-color: #688B73;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .error-message {
+        color: red;
+        text-align: center;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+</style>
+
+
+<h3 class="title">Create an Account</h3>
+
+
+
+<div class="fcontainer">
+    <form>
+        @* <div> *@
+        @*     <label>User ID:</label> *@
+        @*     <input type="number" @bind="newUser.UserId" /> *@
+        @* </div> *@
+
+        <div class="form-group">
+            <label>Name:</label>
+            <input type="text" @bind="newUser.Name" /> 
+        </div> 
+
+        <div class="form-group">
+            <label>User Name:</label>
+            <input type="text" @bind="newUser.UserName" />
+        </div>
+
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" @bind="newUser.Email" />
+        </div>
+
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" @bind="newUser.Password" />
+        </div>
+
+        <div class="form-group">
+            <label>Currency:</label>
+            <select @bind="newUser.Currency">
+                <option value="USD">USD</option>
+                <option value="NPR">NPR</option>
+            </select>
+        </div>
+
+        <button type="button" @onclick="AddNewUser" class="fbtn">Add User</button>
+    </form>
+</div>
+
+@if (errorMessage != null)
+{
+    <p class="error-message">@errorMessage</p>
+}
+
+@* <h3>Retrieve User Information</h3>
+
+<div>
+    <label>Enter User ID to Retrieve Info:</label>
+    <input @bind="searchUserId" />
+    <button type="button" @onclick="GetUserInfo">Get User Info</button>
+</div> *@
+
+@if (retrievedUser != null)
+{
+    <h4>User Details:</h4>
+    <p><strong>Name:</strong> @retrievedUser.Name</p>
+    <p><strong>Address:</strong> @retrievedUser.Address</p>
+}
+
+@code {
+    private User newUser = new User(); //obj created for User Class
+    private string errorMessage;
+
+    // New field for searching user
+    private int searchUserId;
+
+    // Field to hold retrieved user information
+    private User retrievedUser;
+
+    private async Task AddNewUser()
+    {
+        try
+        {
+            var existingUsers = await userService.LoadUsersAsync();
+            // condition chek
+
+
+            await userService.SaveUserAsync(newUser);
+            // Reset the new user object after saving.
+            newUser = new User();
+            errorMessage = null; // Clear any previous error messages
+            navigationManager.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while adding the user: {ex.Message}";
+            Console.WriteLine(errorMessage); // Log for debugging
+        }
+    }
+
+    private async Task GetUserInfo()
+    {
+        try
+        {
+            var users = await userService.LoadUsersAsync();
+            retrievedUser = users.FirstOrDefault(u => u.UserId == searchUserId);
+
+            if (retrievedUser == null)
+            {
+                errorMessage = "No user found with this ID.";
+            }
+            else
+            {
+                errorMessage = null; // Clear any previous error messages
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while retrieving the user: {ex.Message}";
+            Console.WriteLine(errorMessage); // Log for debugging
+        }
+    }
+}
